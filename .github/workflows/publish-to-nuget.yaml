@@ -7,11 +7,6 @@ on:
         description: "Package version (e.g. 1.2.3)"
         required: true
         type: string
-      release_notes:
-        description: "Release notes"
-        required: false
-        type: string
-        default: ""
 
 jobs:
   build-and-publish:
@@ -44,7 +39,6 @@ jobs:
           --no-build
           -o ./nupkgs
           -p:Version=${{ github.event.inputs.version }}
-          -p:PackageReleaseNotes="${{ github.event.inputs.release_notes }}"
 
       - name: Publish packages to NuGet
         run: |
@@ -61,20 +55,12 @@ jobs:
           git push origin v${{ github.event.inputs.version }}
         shell: bash
 
-      - name: Create Release Draft
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create Release
+        run: >
+          gh release create v${{ github.event.inputs.version }}
+          --draft
+          --generate-notes
+          --repo ${{ github.repository }}
+          --notes 'This release is automatically created by actions ... https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.event.inputs.version }}
-          release_name: Release v${{ github.event.inputs.version }}
-          body: |
-            # TR.BBCode.Maui v${{ github.event.inputs.version }}
-
-            ${{ github.event.inputs.release_notes }}
-
-            ## Packages
-            - [TR.BBCode.Parser](https://www.nuget.org/packages/TR.BBCode.Parser/${{ github.event.inputs.version }})
-          draft: true
-          prerelease: false
