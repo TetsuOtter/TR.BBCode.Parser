@@ -1,0 +1,80 @@
+name: Publish to NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (e.g. 1.2.3)"
+        required: true
+        type: string
+      release_notes:
+        description: "Release notes"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build TR.BBCode.Parser
+        run: >
+          dotnet build
+          TR.BBCode.Parser/TR.BBCode.Parser.csproj
+          -c Release
+          -p:Version=${{ github.event.inputs.version }}
+
+      - name: Pack TR.BBCode.Parser with release notes
+        run: >
+          dotnet pack
+          TR.BBCode.Parser/TR.BBCode.Parser.csproj
+          -c Release
+          --no-build
+          -o ./nupkgs
+          -p:Version=${{ github.event.inputs.version }}
+          -p:PackageReleaseNotes="${{ github.event.inputs.release_notes }}"
+
+      - name: Publish packages to NuGet
+        run: |
+          foreach ($file in Get-ChildItem -Path "./nupkgs" -Filter "*.nupkg") {
+            dotnet nuget push $file.FullName --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          }
+        shell: pwsh
+
+      - name: Create tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a v${{ github.event.inputs.version }} -m "Release v${{ github.event.inputs.version }}"
+          git push origin v${{ github.event.inputs.version }}
+        shell: bash
+
+      - name: Create Release Draft
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          release_name: Release v${{ github.event.inputs.version }}
+          body: |
+            # TR.BBCode.Maui v${{ github.event.inputs.version }}
+
+            ${{ github.event.inputs.release_notes }}
+
+            ## Packages
+            - [TR.BBCode.Parser](https://www.nuget.org/packages/TR.BBCode.Parser/${{ github.event.inputs.version }})
+          draft: true
+          prerelease: false
