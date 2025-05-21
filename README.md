@@ -1,1 +1,1 @@
-# TR.BBCodeLabel.Parser
+# TR.BBCode.Parser
